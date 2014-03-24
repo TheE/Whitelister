@@ -13,8 +13,9 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent.Result;
+
 import com.sk89q.commandbook.CommandBook;
-import com.sk89q.commandbook.util.PlayerIteratorAction;
+import com.sk89q.commandbook.util.entity.player.iterators.PlayerIteratorAction;
 import com.sk89q.minecraft.util.commands.Command;
 import com.sk89q.minecraft.util.commands.CommandContext;
 import com.sk89q.minecraft.util.commands.CommandException;
