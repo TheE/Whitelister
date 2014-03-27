@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>de.minehattan</groupId>
     <artifactId>whitelister</artifactId>
-    <version>0.2</version>
+    <version>0.3</version>
 
     <!-- Project information -->
     <name>Whitelister</name>
@@ -45,7 +45,7 @@
         <dependency>
             <groupId>org.bukkit</groupId>
             <artifactId>bukkit</artifactId>
-            <version>1.7.2-R0.1</version>
+            <version>1.7.2-R0.3</version>
         </dependency>
 
         <dependency>
