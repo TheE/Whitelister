@@ -1,10 +1,31 @@
+/**
+ * Copyright (C) 2013 - 2014, Whitelister team and contributors
+ *
+ * This file is part of Whitelister.
+ *
+ * Whitelister is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Whitelister is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Whitelister. If not, see <http://www.gnu.org/licenses/>.
+ */
 package de.minehattan.whitelister;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map.Entry;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
+import java.util.logging.Level;
 
-import org.apache.commons.lang.StringUtils;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -15,38 +36,48 @@ import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent.Result;
 
 import com.sk89q.commandbook.CommandBook;
+import com.sk89q.commandbook.commands.PaginatedResult;
+import com.sk89q.commandbook.util.entity.player.UUIDUtil;
 import com.sk89q.commandbook.util.entity.player.iterators.PlayerIteratorAction;
 import com.sk89q.minecraft.util.commands.Command;
 import com.sk89q.minecraft.util.commands.CommandContext;
 import com.sk89q.minecraft.util.commands.CommandException;
 import com.sk89q.minecraft.util.commands.CommandPermissions;
 import com.sk89q.minecraft.util.commands.NestedCommand;
+import com.sk89q.squirrelid.Profile;
+import com.sk89q.squirrelid.resolver.HttpRepositoryService;
+import com.sk89q.squirrelid.resolver.ProfileService;
 import com.zachsthings.libcomponents.ComponentInformation;
 import com.zachsthings.libcomponents.bukkit.BukkitComponent;
 import com.zachsthings.libcomponents.config.ConfigurationBase;
 import com.zachsthings.libcomponents.config.Setting;
 
-import de.minehattan.whitelister.FlatFileWhitelistManager;
-import de.minehattan.whitelister.WhitelistManager;
+import de.minehattan.whitelister.manager.MySQLWhitelistManager;
+import de.minehattan.whitelister.manager.WhitelistManager;
 
 @ComponentInformation(friendlyName = "Whitelister", desc = "Protects the server with an automatic and flexible whitelist")
 public class Whitelister extends BukkitComponent implements Listener {
 
-    private boolean maintenanceMode = false;
+    private volatile boolean maintenanceMode;
     private LocalConfiguration config;
     private WhitelistManager whitelistManager;
+    private ProfileService resolver;
 
     public static class LocalConfiguration extends ConfigurationBase {
         @Setting("messages.notOnWhitelist")
-        public String notOnWhitelistMessage = "You are not on the Whitelist.";
+        private String notOnWhitelistMessage = "You are not on the Whitelist.";
         @Setting("messages.maintenanceMode")
-        public String maintenanceMessage = "The server is currently in maintenance mode. Please try again in a few minutes.";
+        private String maintenanceMessage = "The server is currently in maintenance mode. Please try again in a few minutes.";
         @Setting("messages.maintenanceEnabled")
-        public String maintenanceEnabledMessage = "Maintenance-Mode has been enabled - only OPs can join now.";
-        @Setting("updateInterval")
-        public int updateInterval = 30;
-        @Setting("caseSensitiveLookup")
-        public boolean caseSensitive = true;
+        private String maintenanceEnabledMessage = "Maintenance-Mode has been enabled - only OPs can join now.";
+        @Setting("mysql.dsn")
+        private String mysqlDsn = "jdbc:mysql://localhost/minecraft";
+        @Setting("mysql.tableName")
+        private String mysqlTableName = "whitelist";
+        @Setting("mysql.user")
+        private String mysqlUser = "minecraft";
+        @Setting("mysql.password")
+        private String mysqlPassword = "password";
     }
 
     @Override
@@ -55,7 +86,8 @@ public class Whitelister extends BukkitComponent implements Listener {
         registerCommands(TopLevelCommand.class);
         CommandBook.registerEvents(this);
 
-        whitelistManager = new FlatFileWhitelistManager(config.updateInterval, config.caseSensitive);
+        resolver = HttpRepositoryService.forMinecraft();
+        whitelistManager = setupWhitelistManager();
     }
 
     @Override
@@ -63,38 +95,52 @@ public class Whitelister extends BukkitComponent implements Listener {
         super.reload();
         configure(config);
 
-        whitelistManager.loadWhitelist();
+        whitelistManager = setupWhitelistManager();
     }
 
+    private WhitelistManager setupWhitelistManager() {
+        // TODO support for json whitelist?
+        return new MySQLWhitelistManager(config.mysqlDsn, config.mysqlTableName, config.mysqlUser,
+                config.mysqlPassword);
+    }
+
+    /**
+     * Called asynchronous when a player tries to join the server.
+     * 
+     * @param event the event
+     */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onAsyncPlayerPreLoginEvent(final AsyncPlayerPreLoginEvent event) {
         CommandBook.logger().info(event.getName() + " is trying to join...");
 
         if (maintenanceMode) {
-            Future<Boolean> isOp = CommandBook.server().getScheduler()
+            Future<Boolean> future = CommandBook.server().getScheduler()
                     .callSyncMethod(CommandBook.inst(), new Callable<Boolean>() {
 
                         @Override
                         public Boolean call() {
-                            return CommandBook.server().getOfflinePlayer(event.getName()).isOp();
+                            return CommandBook.server().getOfflinePlayer(event.getUniqueId()).isOp();
                         }
 
                     });
 
+            boolean isOp = false;
             try {
-                if (!isOp.get()) {
-                    event.disallow(Result.KICK_OTHER, config.maintenanceMessage);
-                    CommandBook.logger().info("Disallow (maintenance mode)");
-                }
+                isOp = future.get();
             } catch (Exception e) {
-                CommandBook.logger().warning(
-                        "Error whole checking op-status for " + event.getName() + ", " + e);
+                CommandBook.logger().log(Level.WARNING,
+                        "Error while checking op-status for " + event.getName() + ". ", e);
+            }
+            if (!isOp) {
                 event.disallow(Result.KICK_OTHER, config.maintenanceMessage);
                 CommandBook.logger().info("Disallow (maintenance mode)");
             }
-        } else if (!whitelistManager.isOnWhitelist(event.getName())) {
+        } else if (!whitelistManager.isOnWhitelist(event.getUniqueId())) {
             event.disallow(Result.KICK_WHITELIST, config.notOnWhitelistMessage);
             CommandBook.logger().info("Disallow (not on whitelist)");
+        } else {
+            //Only update the name for players who are on the Whitelist.
+            whitelistManager.updateName(event.getUniqueId(), event.getName());
         }
     }
 
@@ -106,52 +152,55 @@ public class Whitelister extends BukkitComponent implements Listener {
     }
 
     public class Commands {
-        @Command(aliases = { "add" }, usage = "[player]", desc = "Adds the given name to the whitelist", min = 1, max = 1)
+        @Command(aliases = { "add" }, usage = "[player]", desc = "Adds the player of the given name to the whitelist", min = 1, max = 1)
         @CommandPermissions({ "whitelister.add" })
         public void add(CommandContext args, CommandSender sender) throws CommandException {
             String name = args.getString(0);
-            if (whitelistManager.isOnWhitelist(name)) {
+            UUID id = getUUID(name);
+
+            if (whitelistManager.isOnWhitelist(id)) {
                 throw new CommandException("'" + name + "' is already on the whitelist.");
             }
 
-            whitelistManager.addToWhitelist(name);
+            whitelistManager.addToWhitelist(id, name);
             sender.sendMessage("'" + name + "' was added to the whitelist.");
         }
 
-        @Command(aliases = { "remove", "rm" }, usage = "[player]", desc = "Removes the given name from the whitelist", min = 1, max = 1)
-        @CommandPermissions({ "whitelister.add" })
+        @Command(aliases = { "remove", "rm" }, usage = "[player]", desc = "Removes the player of the given name from the whitelist", min = 1, max = 1)
+        @CommandPermissions({ "whitelister.remove" })
         public void remove(CommandContext args, CommandSender sender) throws CommandException {
             String name = args.getString(0);
-            if (!whitelistManager.isOnWhitelist(name)) {
+            UUID id = getUUID(name);
+
+            if (!whitelistManager.isOnWhitelist(id)) {
                 throw new CommandException("'" + name + "' is not on the whitelist.");
             }
 
-            whitelistManager.removeFromWhitelist(name);
+            whitelistManager.removeFromWhitelist(id);
             sender.sendMessage("'" + name + "' was removed from the whitelist.");
-        }
-
-        @Command(aliases = { "reload" }, desc = "Reloads the whitelist", max = 0)
-        @CommandPermissions({ "whitelister.check" })
-        public void reload(CommandContext args, CommandSender sender) throws CommandException {
-            whitelistManager.loadWhitelist();
-            sender.sendMessage("Whitelist reloaded.");
         }
 
         @Command(aliases = { "check" }, usage = "[player]", desc = "Checks if the player of the given name is on the whitelist", min = 1, max = 1)
         @CommandPermissions({ "whitelister.check" })
         public void check(CommandContext args, CommandSender sender) throws CommandException {
             String name = args.getString(0);
-            sender.sendMessage(whitelistManager.isOnWhitelist(name) ? ChatColor.GREEN + "'" + name
+            UUID id = getUUID(name);
+            sender.sendMessage(whitelistManager.isOnWhitelist(id) ? ChatColor.GREEN + "'" + name
                     + "' is on the whitelist." : ChatColor.RED + "'" + name + "' is not on the whitelist.");
         }
 
-        @Command(aliases = { "list" }, desc = "Lists all players on the whitelist", max = 0)
+        @Command(aliases = { "list" }, usage = "[#]", desc = "Lists all players on the whitelist", max = 1)
         @CommandPermissions({ "whitelister.list" })
         public void list(CommandContext args, CommandSender sender) throws CommandException {
-            sender.sendMessage(StringUtils.join(whitelistManager.getImmutableWhitelist(), ", "));
+            new PaginatedResult<Entry<UUID, String>>("Whitelist (Name - UUID)") {
+                @Override
+                public String format(Entry<UUID, String> entry) {
+                    return entry.getValue() + " - " + entry.getKey();
+                }
+            }.display(sender, whitelistManager.getImmutableWhitelist().entrySet(), args.getInteger(0, 1));
         }
 
-        @Command(aliases = { "maintenance" }, desc = "Sets the server into maintenance mode, alowing only OPs to login", flags = "cn", max = 0)
+        @Command(aliases = { "maintenance" }, desc = "Sets the server into maintenance mode, allowing only OPs to login", flags = "cn", max = 0)
         @CommandPermissions({ "whitelister.maintenance" })
         public void maintenance(CommandContext args, CommandSender sender) throws CommandException {
             if (args.hasFlag('c')) {
@@ -167,8 +216,7 @@ public class Whitelister extends BukkitComponent implements Listener {
                 }
                 maintenanceMode = true;
 
-                CommandBook.server().broadcastMessage(
-                        ChatColor.RED + config.maintenanceEnabledMessage);
+                CommandBook.server().broadcastMessage(ChatColor.RED + config.maintenanceEnabledMessage);
 
                 if (!args.hasFlag('n')) {
                     (new PlayerIteratorAction(sender) {
@@ -182,10 +230,11 @@ public class Whitelister extends BukkitComponent implements Listener {
                         }
 
                         @Override
-                        public void perform(Player player) {
+                        public boolean perform(Player player) {
                             if (!player.isOp()) {
                                 player.kickPlayer(config.maintenanceMessage);
                             }
+                            return true;
                         }
 
                         @Override
@@ -203,6 +252,28 @@ public class Whitelister extends BukkitComponent implements Listener {
                 }
             }
         }
+    }
+
+    private UUID getUUID(String name) throws CommandException {
+        UUID id = UUIDUtil.convert(name);
+        if (id == null) {
+            Profile profile = null;
+            try {
+                profile = resolver.findByName(name);
+            } catch (IOException e) {
+                throw new CommandException("Failed lookup UUID due to an I/O error.");
+            } catch (InterruptedException e) {
+                throw new CommandException("UUID lookup was interrupted.");
+            }
+            if (profile != null) {
+                id = profile.getUniqueId();
+            }
+        }
+        if (id == null) {
+            throw new CommandException("'" + name
+                    + "' could not be assosiated with an UUID - is a valid Minecraft account?");
+        }
+        return id;
     }
 
 }

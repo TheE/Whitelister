@@ -3,12 +3,16 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>de.minehattan</groupId>
     <artifactId>whitelister</artifactId>
-    <version>0.3</version>
+    <version>0.4-SNAPSHOT</version>
+
+    <properties> <!-- Fix encoding warnings -->
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
 
     <!-- Project information -->
     <name>Whitelister</name>
     <inceptionYear>2013</inceptionYear>
-    <description>A commandbook-component to manage a simple whitelist</description>
+    <description>A commandbook-component to manage a whitelist</description>
 
     <licenses>
         <license>
@@ -19,25 +23,16 @@
         </license>
     </licenses>
 
-    <properties> <!-- Fix encoding warnings -->
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
-
+    <!-- Dependencies -->
     <repositories>
         <repository>
             <id>bukkit-repo</id>
             <url>http://repo.bukkit.org/content/groups/public/</url>
         </repository>
+
         <repository>
             <id>sk89q-repo</id>
             <url>http://maven.sk89q.com/repo/</url>
-            <snapshots>
-                <updatePolicy>always</updatePolicy>
-            </snapshots>
-        </repository>
-        <repository>
-            <id>kitteh-repo</id>
-            <url>http://repo.kitteh.org/content/groups/public</url>
         </repository>
     </repositories>
 
@@ -45,19 +40,13 @@
         <dependency>
             <groupId>org.bukkit</groupId>
             <artifactId>bukkit</artifactId>
-            <version>1.7.2-R0.3</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.sk89q</groupId>
-            <artifactId>worldedit</artifactId>
-            <version>5.5.8</version>
+            <version>1.7.9-R0.2</version>
         </dependency>
 
         <dependency>
             <groupId>com.sk89q</groupId>
             <artifactId>commandbook</artifactId>
-            <version>2.3.1-SNAPSHOT</version>
+            <version>2.4</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.zachsthings.libcomponents</groupId>
@@ -69,11 +58,17 @@
                 </exclusion>
             </exclusions>
         </dependency>
+
+        <dependency>
+            <groupId>com.sk89q</groupId>
+            <artifactId>squirrelid</artifactId>
+            <version>0.1.0</version>
+        </dependency>
     </dependencies>
 
     <build>
-        <finalName>${project.name}</finalName>
         <defaultGoal>clean install</defaultGoal>
+        <sourceDirectory>${basedir}/src/main/java</sourceDirectory>
 
         <plugins>
             <plugin>
@@ -83,6 +78,34 @@
                     <source>1.6</source>
                     <target>1.6</target>
                 </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>2.3</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <minimizeJar>true</minimizeJar>
+                            <artifactSet>
+                                <includes>
+                                    <include>com.sk89q.squirrelid</include>
+                                </includes>
+                            </artifactSet>
+                            <relocations>
+                                <relocation>
+                                    <pattern>com.sk89q</pattern>
+                                    <shadedPattern>de.miehattan.whitelister.internal.squirrelid</shadedPattern>
+                                </relocation>
+                            </relocations>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
 
