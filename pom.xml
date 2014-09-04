@@ -4,8 +4,10 @@
     <groupId>de.minehattan</groupId>
     <artifactId>whitelister</artifactId>
     <version>0.4-SNAPSHOT</version>
-
-    <properties> <!-- Fix encoding warnings -->
+    <packaging>jar</packaging>
+    
+    <!-- Fix encoding warnings -->
+    <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
