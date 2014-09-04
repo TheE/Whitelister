@@ -21,21 +21,30 @@ package de.minehattan.whitelister.manager;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 /**
  * Converts byte arrays to {@link UUID}s and back.
  */
 public final class UUIDBinaryConverter {
-    
+
     /**
      * Block initialization of this class.
      */
     private UUIDBinaryConverter() {
     }
 
-    public static UUID fromBytes(byte[] bytes) {
-        if (bytes == null) {
-            return null;
-        }
+    /**
+     * Creates an UUID from the given byte array.
+     * 
+     * @param bytes
+     *            the bytes array
+     * @return the corresponding UUID
+     * @throws NullPointerException
+     *             if {@code bytes} is {@code null}
+     */
+    public static UUID fromBytes(byte[] bytes) throws NullPointerException {
+        checkNotNull(bytes);
 
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
         long mostSignificant = byteBuffer.getLong();
@@ -43,10 +52,17 @@ public final class UUIDBinaryConverter {
         return new UUID(mostSignificant, leastSignificant);
     }
 
-    public static byte[] toBytes(UUID uuid) {
-        if (uuid == null) {
-            return null;
-        }
+    /**
+     * Creates an byte array from the given UUID.
+     * 
+     * @param uuid
+     *            the UUID
+     * @return the corresponding byte array
+     * @throws NullPointerException
+     *             if {@code uuid} is {@code null}
+     */
+    public static byte[] toBytes(UUID uuid) throws NullPointerException {
+        checkNotNull(uuid);
 
         ByteBuffer byteBuffer = ByteBuffer.wrap(new byte[16]);
         byteBuffer.putLong(uuid.getMostSignificantBits());

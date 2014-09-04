@@ -21,16 +21,70 @@ package de.minehattan.whitelister.manager;
 import java.util.Map;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
+/**
+ * Provides an abstraction layer to work with the underlying whitelist. A
+ * whitelist consists of UUIDs and the last known username associated with this
+ * UUID.
+ */
 public interface WhitelistManager {
 
-    public void addToWhitelist(UUID id, String name);
+    /**
+     * Adds the given UUID to the whitelist and associates it with the given
+     * name.
+     * 
+     * @param uniqueId
+     *            the UUID
+     * @param name
+     *            the name
+     */
+    void add(UUID uniqueId, String name);
 
-    public void updateName(UUID id, String name);
+    /**
+     * Removes the given UUID from the whitelist.
+     * 
+     * @param uniqueId
+     *            the UUID
+     */
+    void remove(UUID uniqueId);
 
-    public Map<UUID, String> getImmutableWhitelist();
+    /**
+     * Updates the name that is associated with the given UUID.
+     * 
+     * @param uniqueId
+     *            the UUID
+     * @param name
+     *            the name
+     */
+    void updateName(UUID uniqueId, String name);
 
-    public boolean isOnWhitelist(UUID id);
+    /**
+     * Gets the UUID that is associated with the given name or {@code null} if
+     * there is none.
+     * 
+     * @param name
+     *            the name
+     * @return the corresponding UUID
+     */
+    @Nullable
+    UUID getUniqueID(String name);
 
-    public void removeFromWhitelist(UUID id);
+    /**
+     * Returns whether the whitelist contains the given UUID.
+     * 
+     * @param uniqueId
+     *            the UUID
+     * @return true if the UUID is on the whitelist
+     */
+    boolean contains(UUID uniqueId);
+
+    /**
+     * Gets an immutable representation of the UUIDs on the whitelist and the
+     * associated names.
+     * 
+     * @return an immutable representation of the current whitelist
+     */
+    Map<UUID, String> getWhitelist();
 
 }
