@@ -1,5 +1,5 @@
-/**
- * Copyright (C) 2013 - 2014, Whitelister team and contributors
+/*
+ * Copyright (C) 2013 - 2015, Whitelister team and contributors
  *
  * This file is part of Whitelister.
  *
@@ -37,7 +37,6 @@ import org.bukkit.event.player.AsyncPlayerPreLoginEvent.Result;
 
 import com.sk89q.commandbook.CommandBook;
 import com.sk89q.commandbook.commands.PaginatedResult;
-import com.sk89q.commandbook.util.entity.player.UUIDUtil;
 import com.sk89q.commandbook.util.entity.player.iterators.PlayerIteratorAction;
 import com.sk89q.minecraft.util.commands.Command;
 import com.sk89q.minecraft.util.commands.CommandContext;
@@ -55,6 +54,7 @@ import com.zachsthings.libcomponents.config.Setting;
 
 import de.minehattan.whitelister.manager.MySQLWhitelistManager;
 import de.minehattan.whitelister.manager.WhitelistManager;
+import de.minehattan.whitelister.manager.WhitelistManager.CheckResult;
 
 /**
  * The central entry-point of Whitelister.
@@ -71,8 +71,12 @@ public class Whitelister extends BukkitComponent implements Listener {
      * The configuration.
      */
     public static class LocalConfiguration extends ConfigurationBase {
+        @Setting("allowNameChanges")
+        private boolean allowNameChanges;
         @Setting("messages.notOnWhitelist")
         private String notOnWhitelistMessage = "You are not on the Whitelist.";
+        @Setting("messages.notOnWhitelist")
+        private String nameChangedMessage = "Your ID is on the Whitelist, but associated with an other name (%s).";
         @Setting("messages.maintenanceMode")
         private String maintenanceMessage = "The server is currently in maintenance mode. Please try again in a few minutes.";
         @Setting("messages.maintenanceEnabled")
@@ -113,7 +117,6 @@ public class Whitelister extends BukkitComponent implements Listener {
      * @return the appreciable WhitelistManager
      */
     private WhitelistManager setupWhitelistManager() {
-        // TODO support for json whitelist?
         return new MySQLWhitelistManager(config.mysqlDsn, config.mysqlTableName, config.mysqlUser,
                 config.mysqlPassword);
     }
@@ -150,13 +153,33 @@ public class Whitelister extends BukkitComponent implements Listener {
                 event.disallow(Result.KICK_OTHER, config.maintenanceMessage);
                 CommandBook.logger().info("Disallow (maintenance mode)");
             }
-        } else if (!whitelistManager.contains(event.getUniqueId())) {
+            return;
+        }
+
+        CheckResult result = whitelistManager.contains(event.getUniqueId());
+
+        if (!result.isOnWhitelist()) {
             event.disallow(Result.KICK_WHITELIST, config.notOnWhitelistMessage);
             CommandBook.logger().info("Disallow (not on whitelist)");
-        } else {
-            // Only update the name for players who are on the Whitelist.
-            whitelistManager.updateName(event.getUniqueId(), event.getName());
+            return;
         }
+
+        if (!config.allowNameChanges) {
+            if (!result.getWhitelistedName().equals(event.getName())) {
+
+                event.disallow(Result.KICK_WHITELIST,
+                        String.format(config.nameChangedMessage, result.getWhitelistedName()));
+                CommandBook.logger().info("Disallow (name changed to ' " + event.getName() + "')");
+                return;
+            }
+            
+            //if name changes are not allowed, there is no need to update the stored name
+            return;
+        }
+
+        // Only update the name for players who are on the Whitelist.
+        whitelistManager.updateName(event.getUniqueId(), event.getName());
+
     }
 
     /**
@@ -198,7 +221,7 @@ public class Whitelister extends BukkitComponent implements Listener {
             String name = args.getString(0);
             UUID id = getUUID(name);
 
-            if (whitelistManager.contains(id)) {
+            if (whitelistManager.contains(id).isOnWhitelist()) {
                 throw new CommandException("'" + name + "' is already on the whitelist.");
             }
 
@@ -222,7 +245,7 @@ public class Whitelister extends BukkitComponent implements Listener {
             String name = args.getString(0);
             UUID id = getUUID(name);
 
-            if (!whitelistManager.contains(id)) {
+            if (!whitelistManager.contains(id).isOnWhitelist()) {
                 throw new CommandException("'" + name + "' is not on the whitelist.");
             }
 
@@ -245,8 +268,18 @@ public class Whitelister extends BukkitComponent implements Listener {
         public void check(CommandContext args, CommandSender sender) throws CommandException {
             String name = args.getString(0);
             UUID id = getUUID(name);
-            sender.sendMessage(whitelistManager.contains(id) ? ChatColor.GREEN + "'" + name
-                    + "' is on the whitelist." : ChatColor.RED + "'" + name + "' is not on the whitelist.");
+
+            CheckResult result = whitelistManager.contains(id);
+            if (!result.isOnWhitelist()) {
+                sender.sendMessage(ChatColor.RED + "'" + name + "' is not on the whitelist.");
+            } else if (!result.getWhitelistedName().equals(name)) {
+                sender.sendMessage(ChatColor.YELLOW + "'" + name
+                        + "' is on the whitelist, but with a different name ('" + result.getWhitelistedName()
+                        + ").");
+            } else {
+                sender.sendMessage(ChatColor.GREEN + "'" + name + "' is on the whitelist.");
+            }
+
         }
 
         /**
@@ -268,7 +301,7 @@ public class Whitelister extends BukkitComponent implements Listener {
                     return ChatColor.GRAY + entry.getValue() + ChatColor.WHITE + " - " + ChatColor.GRAY
                             + entry.getKey();
                 }
-            } .display(sender, whitelistManager.getWhitelist().entrySet(), args.getInteger(0, 1));
+            }.display(sender, whitelistManager.getWhitelist().entrySet(), args.getInteger(0, 1));
         }
 
         /**
@@ -345,27 +378,20 @@ public class Whitelister extends BukkitComponent implements Listener {
      *             if the lookup fails or no UUID could be found
      */
     private UUID getUUID(String name) throws CommandException {
-        // checks Bukkit Offline players first!
-        UUID id = UUIDUtil.convert(name);
-        // REVIEW is this logic needed?
-        if (id == null) {
-            Profile profile = null;
-            try {
-                profile = resolver.findByName(name);
-            } catch (IOException e) {
-                throw new CommandException("Failed lookup UUID due to an I/O error.");
-            } catch (InterruptedException e) {
-                throw new CommandException("UUID lookup was interrupted.");
-            }
-            if (profile != null) {
-                id = profile.getUniqueId();
-            }
+        // this logic directly calls the WhitelistManager
+        Profile profile = null;
+        try {
+            profile = resolver.findByName(name);
+        } catch (IOException e) {
+            throw new CommandException("Failed lookup UUID due to an I/O error.");
+        } catch (InterruptedException e) {
+            throw new CommandException("UUID lookup was interrupted.");
         }
-        if (id == null) {
+        if (profile == null) {
             throw new CommandException("'" + name
                     + "' could not be assosiated with an UUID - is a valid Minecraft account?");
         }
-        return id;
+        return profile.getUniqueId();
     }
 
 }

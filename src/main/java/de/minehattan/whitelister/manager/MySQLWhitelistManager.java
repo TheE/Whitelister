@@ -1,5 +1,5 @@
-/**
- * Copyright (C) 2013 - 2014, Whitelister team and contributors
+/*
+ * Copyright (C) 2013 - 201, Whitelister team and contributors
  *
  * This file is part of Whitelister.
  *
@@ -106,23 +106,36 @@ public class MySQLWhitelistManager implements WhitelistManager {
     }
 
     @Override
-    public boolean contains(UUID id) {
+    public CheckResult contains(UUID id) {
         Connection conn = null;
         PreparedStatement stmnt = null;
+        ResultSet rslt = null;
 
         try {
             conn = getConnection();
-            stmnt = conn.prepareStatement("SELECT EXISTS (SELECT 1 FROM `" + tableName
-                    + "` WHERE `minecraft-id` = ?);");
+            stmnt = conn.prepareStatement("SELECT `minecraft-name` FROM `" + tableName
+                    + "` WHERE `minecraft-id` = ? LIMIT 1);");
             stmnt.setBytes(1, UUIDBinaryConverter.toBytes(id));
-            return stmnt.execute();
+            rslt = stmnt.executeQuery();
+            String name = rslt.getString(1);
+            if (name != null) {
+                return new CheckResult(true, name);
+            }
+            return new CheckResult(false, null);
         } catch (SQLException e) {
             CommandBook.logger()
                     .log(Level.SEVERE, "Failed to check if ' " + id + "' is on the whitelist.", e);
         } finally {
+            if (rslt != null) {
+                try {
+                    rslt.close();
+                } catch (SQLException e) {
+                 // ignore since we cannot do anything
+                }
+            }
             closeQuitly(conn, stmnt);
         }
-        return false;
+        return new CheckResult(false, null);
     }
 
     @Override

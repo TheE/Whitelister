@@ -1,5 +1,5 @@
-/**
- * Copyright (C) 2013 - 2014, Whitelister team and contributors
+/*
+ * Copyright (C) 2013 - 2015, Whitelister team and contributors
  *
  * This file is part of Whitelister.
  *
@@ -75,9 +75,9 @@ public interface WhitelistManager {
      * 
      * @param uniqueId
      *            the UUID
-     * @return true if the UUID is on the whitelist
+     * @return a CheckResult with the result
      */
-    boolean contains(UUID uniqueId);
+    CheckResult contains(UUID uniqueId);
 
     /**
      * Gets an immutable representation of the UUIDs on the whitelist and the
@@ -86,5 +86,47 @@ public interface WhitelistManager {
      * @return an immutable representation of the current whitelist
      */
     Map<UUID, String> getWhitelist();
+
+    /**
+     * The immutable result of a whitelist check.
+     */
+    public class CheckResult {
+
+        private final boolean onWhitelist;
+        @Nullable
+        private final String whitelistedName;
+
+        /**
+         * Constructs an instance.
+         * 
+         * @param onWhitelist
+         *            {@code true} if the Whitelist contains the checked entry
+         * @param whitelistedName
+         *            the name as stored on the Whitelist - can be {@code null}
+         *            if no name is stored.
+         */
+        public CheckResult(boolean onWhitelist, @Nullable String whitelistedName) {
+            this.onWhitelist = onWhitelist;
+            this.whitelistedName = whitelistedName;
+        }
+
+        /**
+         * Gets the onWhitelist.
+         *
+         * @return the onWhitelist
+         */
+        public boolean isOnWhitelist() {
+            return onWhitelist;
+        }
+
+        /**
+         * Gets the whitelistedName.
+         *
+         * @return the whitelistedName
+         */
+        public String getWhitelistedName() {
+            return whitelistedName;
+        }
+    }
 
 }

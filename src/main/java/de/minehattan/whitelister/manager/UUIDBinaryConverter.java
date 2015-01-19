@@ -1,5 +1,5 @@
-/**
- * Copyright (C) 2013 - 2014, Whitelister team and contributors
+/*
+ * Copyright (C) 2013 - 2015, Whitelister team and contributors
  *
  * This file is part of Whitelister.
  *
