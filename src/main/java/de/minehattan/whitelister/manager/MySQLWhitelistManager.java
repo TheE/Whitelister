@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 - 201, Whitelister team and contributors
+ * Copyright (C) 2013 - 2015, Whitelister team and contributors
  *
  * This file is part of Whitelister.
  *
@@ -71,7 +71,7 @@ public class MySQLWhitelistManager implements WhitelistManager {
         try {
             conn = getConnection();
             stmnt = conn.prepareStatement("INSERT INTO `" + tableName
-                    + "` (`minecraft-id`, `minecraft-name`) VALUES (?, ?);");
+                    + "` (`minecraft-uuid`, `minecraft-name`) VALUES (?, ?);");
             stmnt.setBytes(1, UUIDBinaryConverter.toBytes(id));
             stmnt.setString(2, name);
             stmnt.execute();
@@ -91,8 +91,8 @@ public class MySQLWhitelistManager implements WhitelistManager {
 
         try {
             conn = getConnection();
-            stmnt = conn
-                    .prepareStatement("SELECT `minecraft-id`, `minecraft-name` FROM `" + tableName + "`;");
+            stmnt = conn.prepareStatement("SELECT `minecraft-uuid`, `minecraft-name` FROM `" + tableName
+                    + "`;");
             ResultSet results = stmnt.executeQuery();
             while (results.next()) {
                 builder.put(UUIDBinaryConverter.fromBytes(results.getBytes(1)), results.getString(2));
@@ -114,12 +114,14 @@ public class MySQLWhitelistManager implements WhitelistManager {
         try {
             conn = getConnection();
             stmnt = conn.prepareStatement("SELECT `minecraft-name` FROM `" + tableName
-                    + "` WHERE `minecraft-id` = ? LIMIT 1);");
+                    + "` WHERE `minecraft-uuid` = ? LIMIT 1;");
             stmnt.setBytes(1, UUIDBinaryConverter.toBytes(id));
             rslt = stmnt.executeQuery();
-            String name = rslt.getString(1);
-            if (name != null) {
-                return new CheckResult(true, name);
+            if (rslt.next()) {
+                String name = rslt.getString(1);
+                if (name != null) {
+                    return new CheckResult(true, name);
+                }
             }
             return new CheckResult(false, null);
         } catch (SQLException e) {
@@ -130,7 +132,7 @@ public class MySQLWhitelistManager implements WhitelistManager {
                 try {
                     rslt.close();
                 } catch (SQLException e) {
-                 // ignore since we cannot do anything
+                    // ignore since we cannot do anything
                 }
             }
             closeQuitly(conn, stmnt);
@@ -145,7 +147,7 @@ public class MySQLWhitelistManager implements WhitelistManager {
 
         try {
             conn = getConnection();
-            stmnt = conn.prepareStatement("DELETE WHERE `minecraft-id` = ?;");
+            stmnt = conn.prepareStatement("DELETE WHERE `minecraft-uuid` = ?;");
             stmnt.setBytes(1, UUIDBinaryConverter.toBytes(id));
             stmnt.execute();
         } catch (SQLException e) {
@@ -162,7 +164,7 @@ public class MySQLWhitelistManager implements WhitelistManager {
 
         try {
             conn = getConnection();
-            stmnt = conn.prepareStatement("UPDATE SET `minecraft-name`= ? WHERE `minecraft-id` = ?;");
+            stmnt = conn.prepareStatement("UPDATE SET `minecraft-name`= ? WHERE `minecraft-uuid` = ?;");
             stmnt.setString(1, name);
             stmnt.setBytes(2, UUIDBinaryConverter.toBytes(id));
             stmnt.execute();
@@ -182,7 +184,7 @@ public class MySQLWhitelistManager implements WhitelistManager {
 
         try {
             conn = getConnection();
-            stmnt = conn.prepareStatement("SELECT `minecraft-id` FROM `" + tableName
+            stmnt = conn.prepareStatement("SELECT `minecraft-uuid` FROM `" + tableName
                     + "` WHERE `minecraft-name`= ? LIMIT 1;");
             stmnt.setString(1, name);
             ResultSet results = stmnt.executeQuery();

@@ -126,13 +126,13 @@
                             <minimizeJar>true</minimizeJar>
                             <artifactSet>
                                 <includes>
-                                    <include>com.sk89q.squirrelid</include>
+                                    <include>com.sk89q:squirrelid</include>
                                 </includes>
                             </artifactSet>
                             <relocations>
                                 <relocation>
-                                    <pattern>com.sk89q</pattern>
-                                    <shadedPattern>de.miehattan.whitelister.internal.squirrelid</shadedPattern>
+                                    <pattern>com.sk89q.squirrelid</pattern>
+                                    <shadedPattern>de.minehattan.whitelister.internal.squirrelid</shadedPattern>
                                 </relocation>
                             </relocations>
                         </configuration>

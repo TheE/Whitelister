@@ -301,7 +301,8 @@ public class Whitelister extends BukkitComponent implements Listener {
                     return ChatColor.GRAY + entry.getValue() + ChatColor.WHITE + " - " + ChatColor.GRAY
                             + entry.getKey();
                 }
-            }.display(sender, whitelistManager.getWhitelist().entrySet(), args.getInteger(0, 1));
+            }
+            .display(sender, whitelistManager.getWhitelist().entrySet(), args.getInteger(0, 1));
         }
 
         /**
