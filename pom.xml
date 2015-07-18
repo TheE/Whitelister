@@ -9,6 +9,7 @@
     <!-- Fix encoding warnings -->
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <checkstyle.configDir>${basedir}/config/checkstyle/</checkstyle.configDir>
     </properties>
 
     <!-- Project information -->
@@ -85,7 +86,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
-                <version>2.12.1</version>
+                <version>2.15</version>
                 <executions>
                     <execution>
                         <id>verify-style</id>
@@ -96,19 +97,8 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <propertyExpansion>basedir=${basedir}</propertyExpansion>
-                    <configLocation>${basedir}/src/main/build/checkstyle.xml</configLocation>
-                </configuration>
-            </plugin>
-
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>findbugs-maven-plugin</artifactId>
-                <version>3.0.0</version>
-                <configuration>
-                    <effort>Max</effort>
-                    <threshold>Low</threshold>
-                    <xmlOutput>true</xmlOutput>
+                    <propertyExpansion>checkstyleConfigDir=${checkstyle.configDir}</propertyExpansion>
+                    <configLocation>${checkstyle.configDir}/checkstyle.xml</configLocation>
                 </configuration>
             </plugin>
 
@@ -123,6 +113,7 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
                             <minimizeJar>true</minimizeJar>
                             <artifactSet>
                                 <includes>
