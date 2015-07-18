@@ -19,6 +19,9 @@
 
 package de.minehattan.whitelister;
 
+import au.com.bytecode.opencsv.CSVWriter;
+
+import com.google.common.base.Charsets;
 import com.sk89q.commandbook.CommandBook;
 import com.sk89q.commandbook.commands.PaginatedResult;
 import com.sk89q.commandbook.util.entity.player.iterators.PlayerIteratorAction;
@@ -49,7 +52,13 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent.Result;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.Map.Entry;
 import java.util.UUID;
@@ -296,6 +305,61 @@ public class Whitelister extends BukkitComponent implements Listener {
           return ChatColor.GRAY + entry.getValue() + ChatColor.WHITE + " - " + ChatColor.GRAY + entry.getKey();
         }
       }.display(sender, whitelistManager.getWhitelist().entrySet(), args.getInteger(0, 1));
+    }
+
+    /**
+     * Exports the entries of the whitelist.
+     *
+     * @param args   the command-arguments
+     * @param sender the CommandSender who initiated the command
+     * @throws CommandException if the command is cancelled
+     */
+    @Command(aliases = {"export"}, desc = "Exports all entries on the whitelist", max = 0)
+    @CommandPermissions({"whitelister.export"})
+    public void export(CommandContext args, CommandSender sender) throws CommandException {
+      File exportFile = new File(CommandBook.inst().getDataFolder(), "whitelistExport.csv");
+      if (exportFile.exists()) {
+        throw new CommandException("The export file '" + exportFile.getAbsolutePath() + "' already exists.");
+      }
+      try {
+        exportFile.createNewFile();
+      } catch (IOException e) {
+        throw new CommandException("Failed to create the export file: " + e);
+      }
+
+      FileOutputStream output = null;
+
+      try {
+        output = new FileOutputStream(exportFile);
+        OutputStreamWriter streamWriter = new OutputStreamWriter(output, Charsets.UTF_8);
+        BufferedWriter writer = new BufferedWriter(streamWriter);
+
+        CSVWriter csv = new CSVWriter(writer);
+
+        for (Entry<UUID, String> entry : whitelistManager.getWhitelist().entrySet()) {
+
+          csv.writeNext(new String[]{entry.getValue(), entry.getKey().toString()});
+        }
+
+        csv.flush();
+        csv.close();
+      } catch (UnsupportedEncodingException e) {
+        throw new CommandException("Encoding of the export file is unsupported.");
+      } catch (FileNotFoundException e) {
+        throw new CommandException("The export file should have been created, but still does not exist.");
+      } catch (IOException e) {
+        throw new CommandException("Failed to write the export file: " + e);
+      } finally {
+        if (output != null) {
+          try {
+            output.close();
+          } catch (IOException e) {
+            // ignore
+          }
+        }
+      }
+      sender.sendMessage(
+          ChatColor.GREEN + "Whitelist entries succesfully exported to '" + exportFile.getAbsolutePath() + "'.");
     }
 
     /**
